@@ -50,8 +50,11 @@ No. This is for the Serial Console CLI only.
 How to run the script:
 
 > cd snwl-serial-commands
+
 > py snwl-serial.py
+
 OR
+
 > python3 snwl-serial.py
 
 
