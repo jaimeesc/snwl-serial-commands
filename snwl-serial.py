@@ -15,13 +15,16 @@
 #
 # Written with love by The SMART Associates
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-version_string = "0.1"
+version_string = "0.2"
+
 
 # Import these modules
 import serial
 import schedule
 import signal
 import sys
+import argparse
+import configparser
 from time import sleep
 from datetime import datetime, timezone
 from getpass import getpass
@@ -287,10 +290,10 @@ def open_serial_connection():
 
     # Wrapping in try/except so I can catch KeyboardInterrupt
     try:
+        print(f"[bold]Connecting to [yellow bold]{serial_params['com_port']}...[/]")
         # While not connected, try to connect.
         while not connected:
             try:
-                print(f"[bold]Connecting to [yellow bold]{serial_params['com_port']}...[/]")
                 # Create the serial instance.
                 sc = serial.Serial(
                     serial_params['com_port'],
@@ -359,6 +362,7 @@ def verify_console_response(scheduled_job=False):
                         spinner.text = "Please wait..."
                         spinner.start()
                     continue
+                # Else (the console response is at least 1 line)
                 else:
                     if not print_console_output:
                         spinner.text = ""
@@ -375,6 +379,8 @@ def verify_console_response(scheduled_job=False):
                                 if not print_console_output:
                                     spinner.stop()
                                 print("[green]Detected SonicOS CLI prompt [yellow](already logged in)[/yellow].[/green]")
+                                # Disable paging just in case we jump into an existing authenticated console session.
+                                disable_cli_paging()
                                 responding = True
                                 break
                             else:
@@ -386,6 +392,7 @@ def verify_console_response(scheduled_job=False):
                                 spinner.stop()
                             print("[green]Detected SonicOS CLI prompt [yellow](User:)[/yellow].[/green]")
                             responding = True
+                            auth_serial_connection()
                             break
                         elif "Password:" in line2.decode():
                             if len(line2.decode()) < 20:
@@ -393,6 +400,7 @@ def verify_console_response(scheduled_job=False):
                                     spinner.stop()
                                 print("[green]Detected SonicOS CLI prompt [yellow](Password:)[/yellow].[/green]")
                                 responding = True
+                                auth_serial_connection()
                             break
                         elif prompts['shell_prompt'] in line2.decode():
                             if len(line2.decode()) < 12:
@@ -404,8 +412,14 @@ def verify_console_response(scheduled_job=False):
                         elif "Access denied" in line2.decode():
                             if not print_console_output:
                                 spinner.stop()
-                            print("[yellow]Access Denied response. Check your password if this continues.[/yellow]")
+                            # Print a message showing access denied, set the responding flag to True, then
+                            # authenticate the console session. Once the code flow returns back to this function,
+                            # break out of the loop. Avoids duplication of the disable_cli_paging() in some situations.
+                            print("[yellow]Access Denied response. Check your password if this continues. Please wait...[/yellow]")
                             responding = True
+                            auth_serial_connection()
+                            # Break out of the loop.
+                            break
                         elif "--MORE--" in line2.decode():
                             if not print_console_output:
                                 spinner.stop()
@@ -513,6 +527,7 @@ def auth_serial_connection():
 
                 # Disable the CLI paging in SonicOS for this login session.
                 disable_cli_paging()
+                return
 
     # Else, the connection is down. Print a message.
     else:
@@ -740,7 +755,7 @@ if __name__ == '__main__':
 
     # Print a timestamp
     start_timestamp = generate_timestamp().split('.')[0]
-    print(f"[cyan bold]{start_timestamp} - Saving output to {start_timestamp}.log [/]")
+    print(f"[cyan bold]DATE/TIME: {start_timestamp} - Saving output to [bold yellow]'{start_timestamp.replace(' ', '_').replace(':', '-')}.log'[/bold yellow].[/]")
 
     # Blank line
     print()
@@ -756,7 +771,7 @@ if __name__ == '__main__':
 
     # Check if authenticated on the console.
     # Also verifies if the firewall is responding over console.
-    auth_serial_connection()
+#    auth_serial_connection()
 
     # Run the show status command.
 #    send_to_console(sc, "show status")
@@ -769,7 +784,7 @@ if __name__ == '__main__':
     # Schedule the jobs to run. The jobs do not run initially.
     # You can run the functions manually if you want them to run initially.
 #    schedule.every(job_run_every).seconds.do(job)
-    schedule.every(1).hours.do(collect_diagnostic_data)
+    schedule.every(10).seconds.do(collect_diagnostic_data)
 
     # Scheduling jobs.
     print("[bold yellow]Jobs were scheduled successfully.[/]")
