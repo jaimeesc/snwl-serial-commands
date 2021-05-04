@@ -8,7 +8,7 @@ The tool will be updated to support CLI arguments, configuration files, and inpu
 
 
 
-##So what can you do with it?
+**So what can you do with it?**
 
 -Log console output to separate text files without any special configuration.
 
@@ -23,14 +23,14 @@ The tool will be updated to support CLI arguments, configuration files, and inpu
 
 
 
-##Requirements:
+**Requirements:**
 
 Python 3.6 or later.
 There are some modules that need to be installed. Use "pip3 install -r requirements.txt" to install the dependencies.
 
 
 
-##Features:
+**Features:**
 
 Automatically authenticates to the console session and detects if there's an existing logged-in session.
 Detects if the device stops responding and recovers.
@@ -42,7 +42,7 @@ Windows PowerShell app and Windows Command Prompt do not display the spinner. In
 
 
 
-##Notes:
+**Notes:**
 
 Only tested on Windows 10. I imagine it can work on other operating systems, but I haven't tested them.
 I have not tested this on macOS or any Linux distros.
@@ -50,14 +50,14 @@ I have not tested this with any multi-blade firewalls.
 
 
 
-##FAQ:
+**FAQ:**
 
 Does this work with SSH Management or SonicOS API?
 No. This is for the Serial Console CLI only.
 
 
 
-##How to run the script:
+**How to run the script:**
 
 > py snwl-serial.py
 
