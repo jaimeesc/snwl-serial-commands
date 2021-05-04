@@ -1,8 +1,12 @@
 # Ignore log files
 /*.log
+/logs/
 
 # Ignore virtual environment
 /pyvenv.cfg
 /Scripts/
 /Lib/
 /Include/
+
+#
+.gitignore

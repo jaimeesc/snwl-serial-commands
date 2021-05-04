@@ -27,7 +27,6 @@ from datetime import datetime, timezone
 from getpass import getpass
 from rich import print
 from yaspin import yaspin, kbi_safe_yaspin
-from yaspin.signal_handlers import fancy_handler
 from yaspin.spinners import Spinners
 
 
