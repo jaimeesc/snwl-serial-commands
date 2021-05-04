@@ -1,0 +1,4 @@
+pyserial
+schedule
+rich
+yaspin

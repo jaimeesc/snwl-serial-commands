@@ -1,0 +1,8 @@
+# Ignore log files
+/*.log
+
+# Ignore virtual environment
+/pyvenv.cfg
+/Scripts/
+/Lib/
+/Include/
