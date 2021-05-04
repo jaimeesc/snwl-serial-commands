@@ -47,12 +47,6 @@ Does this work with SSH Management or SonicOS API?
 No. This is for the Serial Console CLI only.
 
 
-Where can I get it?
-
-SonicGit: https://sonicgit.eng.sonicwall.com/jescalera/snwl-serial-automation-tool
-GitHub: https://github.com/jaimeesc/snwl-serial-automation-tool
-
-
 How to run the script:
 
 > cd snwl-serial-commands
