@@ -57,7 +57,7 @@ job_run_every = 300
 
 # Print console output False prints start/end messages for each command executed.
 # True prints all console output. Either way, output is still saved to a log file.
-print_console_output = False
+print_console_output = True
 
 # True prints a "Still running..." message when commands are taking time to complete.
 # False prints nothing while long-running commands are executing.
@@ -348,7 +348,7 @@ def verify_console_response(scheduled_job=False):
             # While the responding flag is False...
             while not responding:
                 # Send an ENTER keystroke.
-                send_to_console(sc, "", wait_time=5)
+                send_to_console(sc, "", wait_time=3)
 
                 # Get the current output/prompt.
                 try:
@@ -382,24 +382,6 @@ def verify_console_response(scheduled_job=False):
                         #This print will hit if the response gets something back.
                         #print(line.decode().rstrip('\n'))
 
-                        #
-                        # try:
-                        #     # decoded_line variable attempts to decode the bytes to str.
-                        #     decoded_line = line2.decode()
-                        #
-                        #     # prompt_text variable is the SonicOS prompt str
-                        #     prompt_text = prompts['sos_prompt']
-                        # except UnicodeDecodeError as e:
-                        #     if not print_console_output:
-                        #         spinner.stop()
-                        #     # If there was an error decoding, use the bytes object instead.
-                        #     decoded_line = line2
-                        #
-                        #     # Set the prompt
-                        #     prompt_text = prompts['sos_prompt'].encode("utf-8")
-                        #
-                        #     print(f"[bold red]WARNING: {e}. This can occur when there's a sudden loss of serial connectivity.[/]")
-
                         # If the prompt text is detected in the line.
                         if prompts['sos_prompt'].encode('utf-8') in x:
                             if not scheduled_job:
@@ -429,6 +411,20 @@ def verify_console_response(scheduled_job=False):
                                 responding = True
                                 auth_serial_connection()
                             break
+                        if prompts['sos_prompt_config'].encode('utf-8') in x:
+                            if not scheduled_job:
+                                if not print_console_output:
+                                    spinner.stop()
+                                print(
+                                    "[green]Detected SonicOS CLI configuration prompt. [yellow](already logged in)[/yellow].[/green]")
+                                # Disable paging just in case we jump into an existing authenticated console session.
+                                disable_cli_paging()
+                                responding = True
+                                break
+                            else:
+                                #spinner.start()
+                                responding = True
+                                break
                         elif prompts['shell_prompt'].encode('utf-8') in x:
                             if len(x) < 12:
                                 if not print_console_output:
@@ -517,7 +513,7 @@ def auth_serial_connection():
                 send_to_console(sc, "")
 
         # If a user login prompt is returned, authenticate.
-        if b"User:" in sc.readlines():
+        if "User:".encode('utf-8') in sc.readlines():
             # Stop the spinner before printing.
             if not print_console_output:
                 spinner.stop()
@@ -525,7 +521,7 @@ def auth_serial_connection():
             send_to_console(sc, credentials['user'], prepend_enter_key=False, wait_time=2)
 
         # After sending the username, check the response for the password prompt.
-        if b"Password:" in sc.readlines():
+        if "Password:".encode('utf-8') in sc.readlines():
             # Stop the spinner before printing.
             if not print_console_output:
                 spinner.stop()
@@ -541,15 +537,15 @@ def auth_serial_connection():
             if not print_console_output:
                 spinner.stop()
 
-            if "Access denied" in i.decode():
+            if "Access denied".encode('utf-8') in i:
                 print(f"[red]Login failed. Access denied. Check your credentials and try again.[/red]")
                 #exit()
                 custom_exit()
-            if "% Maximum login attempts exceeded." in i.decode():
+            if "% Maximum login attempts exceeded.".encode('utf-8') in i:
                 print(f"[red]Login failed. Maximum login attempts exceeded. Check your credentials and try again.[/red]")
                 #exit()
                 custom_exit()
-            if prompts['sos_prompt'] in i.decode():
+            if prompts['sos_prompt'].encode('utf-8') in i:
                 print(f"[green]Authenticated![/green]")
                 # Disable the CLI paging in SonicOS for this login session.
                 disable_cli_paging()
@@ -614,30 +610,18 @@ def process_console_response(after_process_msg=''):
                     if print_console_output:
                         lx = line.decode().rstrip('\n')
                         print(f"[cyan]{lx}[/cyan]")
-                # If the line is % Applying changes... colorize the print out.
-                elif "% Applying changes...".encode('utf-8') in line:
+                # If the line is a "% " response such as Applying changes or errors, colorize print out.
+                elif line.startswith("% ".encode('utf-8')):
                     if not print_console_output:
                         spinner.stop()
                     lx = line.decode().rstrip('\n')
                     print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [yellow]{lx}[/yellow]")
-                # If the line is % Status returned... colorize the print out.
-                elif "% Status returned processing command:".encode('utf-8') in line:
+                # If the line is the commit line from status returned processing command, colorize print out.
+                elif "  commit".encode('utf-8') in line:
                     if not print_console_output:
                         spinner.stop()
                     lx = line.decode().rstrip('\n')
                     print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [yellow]{lx}[/yellow]")
-                # If the line is % No changes made colorize the print out.
-                elif "% No changes made.".encode('utf-8') in line:
-                    if not print_console_output:
-                        spinner.stop()
-                    lx = line.decode().rstrip('\n')
-                    print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [green]{lx}[/green]")
-                # If the line is % Changes made colorize the print out.
-                elif "% Changes made.".encode('utf-8') in line:
-                    if not print_console_output:
-                        spinner.stop()
-                    lx = line.decode().rstrip('\n')
-                    print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [green]{lx}[/green]")
                 # If the line is % Changes made colorize the print out.
                 elif "% User logout.".encode('utf-8') in line:
                     if not print_console_output:
