@@ -15,7 +15,7 @@
 #
 # Written with love by The SMART Associates
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-version_string = "0.2"
+version_string = "0.3"
 
 
 # Import these modules
@@ -53,7 +53,7 @@ prompts = {
 }
 
 # Interval at which to run the scheduled commands (in seconds)
-job_run_every = 5
+job_run_every = 300
 
 # Print console output False prints start/end messages for each command executed.
 # True prints all console output. Either way, output is still saved to a log file.
@@ -227,11 +227,17 @@ def report_active_tunnels():
 
 
 # Shortcut function to enable HTTPS/SSH management on X1.
-def enable_x1_management():
+def enable_interface_management(interface=''):
+    if not print_console_output:
+        spinner.stop()
+
+    print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [green]Enabling HTTPS/SSH/Ping Management on {interface.capitalize()}[/green]")
+
     send_to_console(sc, "config")
-    send_to_console(sc, "interface X1")
+    send_to_console(sc, f"interface {interface.capitalize()}")
     send_to_console(sc, "management https")
     send_to_console(sc, "management ssh")
+    send_to_console(sc, "no management ping")
     send_to_console(sc, "commit")
     send_to_console(sc, "end") # End interface configuration, back to config prompt.
     send_to_console(sc, "exit") # Exit configuration prompt.
@@ -257,7 +263,7 @@ def collect_diagnostic_data():
 
     # List of dictionaries containing commands and arguments
     command_list = [
-         {'cmd': 'show status', 'process_response': True, 'wait_time': 0.5},
+#         {'cmd': 'show status', 'process_response': True, 'wait_time': 0.5},
          {'cmd': 'diag show alerts', 'process_response': True, 'wait_time': 0.5},
         # {'cmd': 'diag show cpu', 'process_response': True, 'wait_time': 0.5},
         # {'cmd': 'diag show multicore', 'process_response': True, 'wait_time': 0.5},
@@ -267,9 +273,10 @@ def collect_diagnostic_data():
         # {'cmd': 'diag show memzone summary', 'process_response': True, 'wait_time': 0.5},
         # {'cmd': 'diag show memzone verbose', 'process_response': True, 'wait_time': 0.5},
         # {'cmd': 'diag show tracelog', 'process_response': True, 'wait_time': 0.5},
-         {'cmd': 'diag show tracelog current', 'process_response': True, 'wait_time': 0.5},
+#         {'cmd': 'diag show tracelog current', 'process_response': True, 'wait_time': 0.5},
         # {'cmd': 'diag show tracelog last', 'process_response': True, 'wait_time': 0.5},
         #{'cmd': 'show tech-support-report', 'process_response': True, 'wait_time': 0.5},
+#        {'cmd': 'show tech-support-report', 'process_response': True, 'wait_time': 0.5},
 #        {'cmd': 'dd', 'process_response': True, 'wait_time': 0.5},
     ]
 
@@ -371,10 +378,30 @@ def verify_console_response(scheduled_job=False):
                     write_output_to_file(r)
 
                     # Iterate over the console response to check for a prompt.
-                    for line2 in r:
+                    for x in r:
                         #This print will hit if the response gets something back.
                         #print(line.decode().rstrip('\n'))
-                        if prompts['sos_prompt'] in line2.decode():
+
+                        #
+                        # try:
+                        #     # decoded_line variable attempts to decode the bytes to str.
+                        #     decoded_line = line2.decode()
+                        #
+                        #     # prompt_text variable is the SonicOS prompt str
+                        #     prompt_text = prompts['sos_prompt']
+                        # except UnicodeDecodeError as e:
+                        #     if not print_console_output:
+                        #         spinner.stop()
+                        #     # If there was an error decoding, use the bytes object instead.
+                        #     decoded_line = line2
+                        #
+                        #     # Set the prompt
+                        #     prompt_text = prompts['sos_prompt'].encode("utf-8")
+                        #
+                        #     print(f"[bold red]WARNING: {e}. This can occur when there's a sudden loss of serial connectivity.[/]")
+
+                        # If the prompt text is detected in the line.
+                        if prompts['sos_prompt'].encode('utf-8') in x:
                             if not scheduled_job:
                                 if not print_console_output:
                                     spinner.stop()
@@ -387,29 +414,29 @@ def verify_console_response(scheduled_job=False):
 #                                spinner.start()
                                 responding = True
                                 break
-                        elif "User:" in line2.decode():
+                        elif "User:".encode('utf-8') in x:
                             if not print_console_output:
                                 spinner.stop()
                             print("[green]Detected SonicOS CLI prompt [yellow](User:)[/yellow].[/green]")
                             responding = True
                             auth_serial_connection()
                             break
-                        elif "Password:" in line2.decode():
-                            if len(line2.decode()) < 20:
+                        elif "Password:".encode('utf-8') in x:
+                            if len(x) < 20:
                                 if not print_console_output:
                                     spinner.stop()
                                 print("[green]Detected SonicOS CLI prompt [yellow](Password:)[/yellow].[/green]")
                                 responding = True
                                 auth_serial_connection()
                             break
-                        elif prompts['shell_prompt'] in line2.decode():
-                            if len(line2.decode()) < 12:
+                        elif prompts['shell_prompt'].encode('utf-8') in x:
+                            if len(x) < 12:
                                 if not print_console_output:
                                     spinner.stop()
-                                print("[green]Detected debug shell prompt.[/green]")
+                                print("[green]Detected debug shell prompt.[/green]", "--->", line2.decode())
                                 responding = True
                         # If login fails (occurs when we hit ENTER at a half-logged in console (at a passwd prompt)
-                        elif "Access denied" in line2.decode():
+                        elif "Access denied".encode('utf-8') in x:
                             if not print_console_output:
                                 spinner.stop()
                             # Print a message showing access denied, set the responding flag to True, then
@@ -420,7 +447,7 @@ def verify_console_response(scheduled_job=False):
                             auth_serial_connection()
                             # Break out of the loop.
                             break
-                        elif "--MORE--" in line2.decode():
+                        elif "--MORE--".encode('utf-8') in x:
                             if not print_console_output:
                                 spinner.stop()
                             # If the line includes --MORE-- indicating a previous command that paginated output.
@@ -432,7 +459,7 @@ def verify_console_response(scheduled_job=False):
                             if not print_console_output:
                                 spinner.stop()
                             if print_console_output:
-                                print(line2.decode().rstrip('\n'))
+                                print(x.decode().rstrip('\n'))
                             #print("[yellow]Detected a response, but not a prompt. Device may be rebooting.[/yellow]")
 #                            responding = True
         except KeyboardInterrupt:
@@ -524,7 +551,6 @@ def auth_serial_connection():
                 custom_exit()
             if prompts['sos_prompt'] in i.decode():
                 print(f"[green]Authenticated![/green]")
-
                 # Disable the CLI paging in SonicOS for this login session.
                 disable_cli_paging()
                 return
@@ -567,45 +593,57 @@ def process_console_response(after_process_msg=''):
             # Print out each line from the console response.
             try:
                 # If the line is a SonicOS prompt, colorize the print out.
-                if prompts['sos_prompt'] in line.decode():
+                if prompts['sos_prompt'].encode('utf-8') in line:
                     if print_console_output:
                         lx = line.decode().rstrip('\n')
                         print(f'[cyan]{lx}[/cyan]')
                 # If the line is a SonicOS prompt, colorize the print out.
-                elif prompts['sos_prompt_config'] in line.decode():
+                elif prompts['sos_prompt_config'].encode('utf-8') in line:
                     if print_console_output:
                         lx = line.decode().rstrip('\n')
                         print(f'[cyan]{lx}[/cyan]')
                 # If the line is the echo of the "no cli pager session" command...
-                elif "no cli pager session" in line.decode():
+                elif "no cli pager session".encode('utf-8') in line:
                     if print_console_output:
                         lx = line.decode().rstrip('\n')
                         print(f'[cyan]{lx}[/cyan]')
                 # If the line is the echo of the "no cli pager session" command...
-                elif "diag show" in line.decode():
+                elif "diag show".encode('utf-8') in line:
+                    if not print_console_output:
+                        spinner.stop()
                     if print_console_output:
                         lx = line.decode().rstrip('\n')
-                        print(f'[cyan]{lx}[/cyan]')
+                        print(f"[cyan]{lx}[/cyan]")
                 # If the line is % Applying changes... colorize the print out.
-                elif "% Applying changes..." in line.decode():
+                elif "% Applying changes...".encode('utf-8') in line:
+                    if not print_console_output:
+                        spinner.stop()
                     lx = line.decode().rstrip('\n')
-                    print(f'[yellow]{lx}[/yellow]')
+                    print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [yellow]{lx}[/yellow]")
                 # If the line is % Status returned... colorize the print out.
-                elif "% Status returned processing command:" in line.decode():
+                elif "% Status returned processing command:".encode('utf-8') in line:
+                    if not print_console_output:
+                        spinner.stop()
                     lx = line.decode().rstrip('\n')
-                    print(f'[yellow]{lx}[/yellow]')
+                    print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [yellow]{lx}[/yellow]")
                 # If the line is % No changes made colorize the print out.
-                elif "% No changes made." in line.decode():
+                elif "% No changes made.".encode('utf-8') in line:
+                    if not print_console_output:
+                        spinner.stop()
                     lx = line.decode().rstrip('\n')
-                    print(f'[green]{lx}[/green]')
+                    print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [green]{lx}[/green]")
                 # If the line is % Changes made colorize the print out.
-                elif "% Changes made." in line.decode():
+                elif "% Changes made.".encode('utf-8') in line:
+                    if not print_console_output:
+                        spinner.stop()
                     lx = line.decode().rstrip('\n')
-                    print(f'[green]{lx}[/green]')
+                    print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [green]{lx}[/green]")
                 # If the line is % Changes made colorize the print out.
-                elif "% User logout." in line.decode():
+                elif "% User logout.".encode('utf-8') in line:
+                    if not print_console_output:
+                        spinner.stop()
                     lx = line.decode().rstrip('\n')
-                    print(f'[yellow]{lx}[/yellow]')
+                    print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [yellow]{lx}[/yellow]")
                 else:
                     # Else don't colorize.
                     try:
@@ -613,18 +651,18 @@ def process_console_response(after_process_msg=''):
                             print(line.decode().rstrip('\n'))
                     except KeyboardInterrupt:
                         print("Cancelled!")
-            except UnicodeDecodeError:
+            except UnicodeDecodeError as e:
                 if print_console_output:
-                    print(line)
+                    print("WARNING: Unicode decode error:", e, "-->", line)
 
             # If the command was paginated, the response will include --MORE--.
             try:
-                if "--MORE--" in line.decode():
+                if "--MORE--".encode('utf-8') in line:
                     # Send a space character to request another "page" of information.
                     send_to_console(sc, " ")
 
                 # In the event of a user logout, log back in.
-                if line.decode() == "User:":
+                if line == "User:".encode('utf-8'):
                     auth_serial_connection()
             except UnicodeDecodeError:
                 if print_console_output:
@@ -635,8 +673,25 @@ def process_console_response(after_process_msg=''):
             # If the response list of lines is at least 1.
             if len(lines) > 0:
                 # Check for a SonicOS prompt.
+                # try:
+                #     # decoded_line variable attempts to decode the bytes to str.
+                #     decoded_line = lines[-1].decode()
+                #
+                #     # prompt_text variable is the SonicOS prompt str
+                #     prompt_text = prompts['sos_prompt']
+                # except UnicodeDecodeError as e:
+                #     if not print_console_output:
+                #         spinner.stop()
+                #     # If there was an error decoding, use the bytes object instead.
+                #     decoded_line = lines[-1]
+                #
+                #     # Set the prompt
+                #     prompt_text = prompts['sos_prompt'].encode("utf-8")
+                #
+                #     print(f"[bold red]WARNING: {e}. This can occur when there's a sudden loss of serial connectivity.[/]")
+
                 try:
-                    if prompts['sos_prompt'] in lines[-1].decode():
+                    if prompts['sos_prompt'].encode('utf-8') in lines[-1]:
                         # If a message was set to print after the command runs and is at least 1 char, print it.
                         if after_process_msg:
                             # Print the message if the length is at least 1.
@@ -644,7 +699,6 @@ def process_console_response(after_process_msg=''):
                                 if not print_console_output:
                                     spinner.stop()
                                 print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: {after_process_msg}")
-    #                            spinner.ok("✔")
                     # Else if the response is not a SonicOS prompt (indicating the command is still running)
                     else:
                         # If there's a message to print after processing
@@ -655,7 +709,6 @@ def process_console_response(after_process_msg=''):
                                     print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [yellow]Still running...[/yellow]")
                                 else:
                                     try:
-    #                                    print("hit", len(lines), lines)
                                         if not print_console_output:
                                             spinner.start()
                                     except KeyboardInterrupt:
@@ -667,7 +720,9 @@ def process_console_response(after_process_msg=''):
                                 continue
                         continue
                 except UnicodeDecodeError as e:
-                    print("Alex error:", e, len(lines), lines[-1])
+                    if not print_console_output:
+                        spinner.stop()
+                    print(f"[bold red]WARNING: {e}. This can occur when there's a sudden loss of serial connectivity.[/]")
         except IndexError as e:
             print(after_process_msg, "-->", e, "-->", len(lines), "-->", lines)
 #            print(after_process_msg)
@@ -792,7 +847,8 @@ if __name__ == '__main__':
         spinner.start()
 
     # Manual one-time jobs to run before starting the loop.
-    collect_diagnostic_data()  # Initially run the job
+#    collect_diagnostic_data()  # Initially run the job
+    enable_interface_management(interface='x0')
 
     # Start an infinite loop. Runs scheduled functions on an interval. Displays console output if enabled.
     while True:
