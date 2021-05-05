@@ -3,7 +3,7 @@
 
 ###SonicWall Serial Console Automation Tool for SonicOS.
 
-### ***This project is a work in progress.***
+## ***This project is a work in progress.***
 
 It is currently functional but requires configuration directly in the script file.
 
