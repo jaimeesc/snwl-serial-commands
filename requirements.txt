@@ -2,3 +2,5 @@ pyserial
 schedule
 rich
 yaspin
+argparse
+configparser
