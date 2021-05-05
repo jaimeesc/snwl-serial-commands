@@ -1,7 +1,7 @@
 # snwl-serial-commands
 
 
-###SonicWall Serial Console Automation Tool for SonicOS.
+## SonicWall Serial Console Automation Tool for SonicOS.
 
 ## ***This project is a work in progress.***
 
