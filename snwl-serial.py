@@ -57,7 +57,7 @@ job_run_every = 300
 
 # Print console output False prints start/end messages for each command executed.
 # True prints all console output. Either way, output is still saved to a log file.
-print_console_output = True
+print_console_output = False
 
 # True prints a "Still running..." message when commands are taking time to complete.
 # False prints nothing while long-running commands are executing.
@@ -227,30 +227,47 @@ def report_active_tunnels():
 
 
 # Shortcut function to enable HTTPS/SSH management on X1.
+# This is an example of a set of commands where you might want to process the response
+# after sending a series of commands. One downside is that you won't see any output until the final command is done.
+# Another downside is that any prints you place in between commands will be displayed before any console output.
+# For example, if you print("done!") after a send_to_console() call but before process_console_response(), print will
+# appear to be premature. Instead, you may opt to send_to_console(process_response=True) on some commands.
+# Doing that also allows you to add pre- and post- prints with print_before and print_after.
 def enable_interface_management(interface=''):
+    # If not printing output, we display a spinner instead. This helps manage the spinner display.
     if not print_console_output:
         spinner.stop()
 
+    # Printing before sending any commands.
     print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [green]Enabling HTTPS/SSH/Ping Management on {interface.capitalize()}[/green]")
 
+    # Series of commands needed to enable management on an interface.
     send_to_console(sc, "config")
     send_to_console(sc, f"interface {interface.capitalize()}")
     send_to_console(sc, "management https")
     send_to_console(sc, "management ssh")
-    send_to_console(sc, "no management ping")
+    send_to_console(sc, "management ping")
+    send_to_console(sc, "management snmp")
     send_to_console(sc, "commit")
     send_to_console(sc, "end") # End interface configuration, back to config prompt.
     send_to_console(sc, "exit") # Exit configuration prompt.
+
+    # In this example, we process the commands after sending them all
+    process_console_response()
 
 
 # Shortcut function for gathering important diagnostic data
 # The send_to_console command sends the commands, but does not read the response itself.
 # Instead, the while loop within the main() function displays the console output.
-# The result of this is that any prints not sent with the command will occur before any command output is seen/handled.
-# I added the process_response= keyword argument to the send_to_console() function to address this logic.
-# That new kwarg allows you to process the command immediately before moving on to the main loop (ensures command completes)
-# before moving out of the function. Additionally, you can use the print_after kwarg to print a message
+# The result of this is that any prints not sent with the command will occur before any command
+# output is seen/handled. I added the process_response= keyword argument to the send_to_console()
+# function to address this logic. That new kwarg allows you to process the command immediately
+# before moving on to the main loop (ensures command completes) before moving out of the function.
+# Additionally, you can use the print_before/print_after kwargs to print a message after
 # confirming completion after the command processing is complete.
+# This is an example of a function that contains a list of command dictionaries, and sends
+# each command with the custom configuration using a for loop. With each command we process
+# the response, which confirms the completion of the command and may display output that's returned.
 def collect_diagnostic_data():
     # Start the spinner if console output is disabled.
     if not print_console_output:
@@ -259,30 +276,45 @@ def collect_diagnostic_data():
     # Verify the console prompt before running the jobs.
     verify_console_response(scheduled_job=True)
 
+    # Print before sending commands.
     print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [green]Starting diagnostic data collection.[/green]")
 
     # List of dictionaries containing commands and arguments
+    # Notice these commands do not include print_before or print_after.
+    # In this example, I wanted to post a similar message for each command start/end so I set those
+    # keyword arguments below within the for loop, in the call to send_to_console().
     command_list = [
-#         {'cmd': 'show status', 'process_response': True, 'wait_time': 0.5},
-         {'cmd': 'diag show alerts', 'process_response': True, 'wait_time': 0.5},
-        # {'cmd': 'diag show cpu', 'process_response': True, 'wait_time': 0.5},
-        # {'cmd': 'diag show multicore', 'process_response': True, 'wait_time': 0.5},
-        # {'cmd': 'diag show memory', 'process_response': True, 'wait_time': 0.5},
-        # {'cmd': 'diag show fpa', 'process_response': True, 'wait_time': 0.5},
-        # {'cmd': 'diag show mem-pools', 'process_response': True, 'wait_time': 0.5},
-        # {'cmd': 'diag show memzone summary', 'process_response': True, 'wait_time': 0.5},
-        # {'cmd': 'diag show memzone verbose', 'process_response': True, 'wait_time': 0.5},
-        # {'cmd': 'diag show tracelog', 'process_response': True, 'wait_time': 0.5},
-#         {'cmd': 'diag show tracelog current', 'process_response': True, 'wait_time': 0.5},
-        # {'cmd': 'diag show tracelog last', 'process_response': True, 'wait_time': 0.5},
-        #{'cmd': 'show tech-support-report', 'process_response': True, 'wait_time': 0.5},
-#        {'cmd': 'show tech-support-report', 'process_response': True, 'wait_time': 0.5},
-#        {'cmd': 'dd', 'process_response': True, 'wait_time': 0.5},
+        # Example:
+        # {
+        #     'cmd': 'CLI command goes here',
+        #     'process_response': True, # True or False
+        #     'wait_time': 0.5, # Seconds
+        #     'prepend_enter_key': True, # True or False (True adds enter keystroke before command)
+        #     'print_before': 'Print this before sending the command.',
+        #     'print_after': 'Print this after the command and confirming the prompt is returned.',
+        # },
+        {'cmd': 'show status', 'process_response': True, 'wait_time': 0.5},
+        {'cmd': 'diag show alerts', 'process_response': True, 'wait_time': 0.5},
+        {'cmd': 'diag show cpu', 'process_response': True, 'wait_time': 0.5},
+        {'cmd': 'diag show multicore', 'process_response': True, 'wait_time': 0.5},
+        {'cmd': 'diag show memory', 'process_response': True, 'wait_time': 0.5},
+        {'cmd': 'diag show fpa', 'process_response': True, 'wait_time': 0.5},
+        {'cmd': 'diag show mem-pools', 'process_response': True, 'wait_time': 0.5},
+        {'cmd': 'diag show memzone summary', 'process_response': True, 'wait_time': 0.5},
+        {'cmd': 'diag show memzone verbose', 'process_response': True, 'wait_time': 0.5},
+        {'cmd': 'diag show tracelog', 'process_response': True, 'wait_time': 0.5},
+        {'cmd': 'diag show tracelog current', 'process_response': True, 'wait_time': 0.5},
+        {'cmd': 'diag show tracelog last', 'process_response': True, 'wait_time': 0.5},
+        {'cmd': 'show tech-support-report', 'process_response': True, 'wait_time': 0.5},
+        {'cmd': 'dd', 'process_response': True, 'wait_time': 0.5},
     ]
 
     # For each command in the list.
     for c in command_list:
         # Send the command!
+        # In this example, I set an f-string for print_before and print_after.
+        # You can choose to include custom prints within the command dictionaries above and reference
+        # that key in the command below.
         send_to_console(sc, c['cmd'],
                         process_response=c['process_response'], # Process the response now or
                         wait_time=c['wait_time'],  # Seconds to wait before processing the console's response.
@@ -290,7 +322,9 @@ def collect_diagnostic_data():
                         print_after=f"[green]Finished: '{c['cmd']}'[/green]")
 
 
-# Open the serial port
+# Open the serial port.
+# This will fail if another terminal app or script instance is running and connected to the port.
+# The port will open even if your serial cable is not connected to the firewall.
 def open_serial_connection():
     # Initial connection flag is 0
     connected = False
@@ -393,7 +427,7 @@ def verify_console_response(scheduled_job=False):
                                 responding = True
                                 break
                             else:
-#                                spinner.start()
+                                #spinner.start()
                                 responding = True
                                 break
                         elif "User:".encode('utf-8') in x:
@@ -611,7 +645,7 @@ def process_console_response(after_process_msg=''):
                         lx = line.decode().rstrip('\n')
                         print(f"[cyan]{lx}[/cyan]")
                 # If the line is a "% " response such as Applying changes or errors, colorize print out.
-                elif line.startswith("% ".encode('utf-8')):
+                elif line.startswith("% ".encode('utf-8')) and "of maximum connections".encode('utf-8') not in line:
                     if not print_console_output:
                         spinner.stop()
                     lx = line.decode().rstrip('\n')
@@ -657,23 +691,6 @@ def process_console_response(after_process_msg=''):
             # If the response list of lines is at least 1.
             if len(lines) > 0:
                 # Check for a SonicOS prompt.
-                # try:
-                #     # decoded_line variable attempts to decode the bytes to str.
-                #     decoded_line = lines[-1].decode()
-                #
-                #     # prompt_text variable is the SonicOS prompt str
-                #     prompt_text = prompts['sos_prompt']
-                # except UnicodeDecodeError as e:
-                #     if not print_console_output:
-                #         spinner.stop()
-                #     # If there was an error decoding, use the bytes object instead.
-                #     decoded_line = lines[-1]
-                #
-                #     # Set the prompt
-                #     prompt_text = prompts['sos_prompt'].encode("utf-8")
-                #
-                #     print(f"[bold red]WARNING: {e}. This can occur when there's a sudden loss of serial connectivity.[/]")
-
                 try:
                     if prompts['sos_prompt'].encode('utf-8') in lines[-1]:
                         # If a message was set to print after the command runs and is at least 1 char, print it.
@@ -815,15 +832,11 @@ if __name__ == '__main__':
     # Run the show status command.
 #    send_to_console(sc, "show status")
 #    report_active_tunnels()
-#    enable_x1_management()
-#    send_to_console(sc, "show vpn tunnels ipsec")
-#    send_to_console(sc, "show user status")
-#    send_to_console(sc, "show tech-support-report")
 
     # Schedule the jobs to run. The jobs do not run initially.
     # You can run the functions manually if you want them to run initially.
 #    schedule.every(job_run_every).seconds.do(job)
-    schedule.every(10).seconds.do(collect_diagnostic_data)
+#    schedule.every(10).seconds.do(collect_diagnostic_data)
 
     # Scheduling jobs.
     print("[bold yellow]Jobs were scheduled successfully.[/]")
@@ -831,8 +844,10 @@ if __name__ == '__main__':
         spinner.start()
 
     # Manual one-time jobs to run before starting the loop.
-#    collect_diagnostic_data()  # Initially run the job
-    enable_interface_management(interface='x0')
+    collect_diagnostic_data()  # Initially run the job
+#    enable_interface_management(interface='x0')
+#    enable_interface_management(interface='x1')
+#    exit()
 
     # Start an infinite loop. Runs scheduled functions on an interval. Displays console output if enabled.
     while True:
