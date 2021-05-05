@@ -3,7 +3,7 @@
 
 ###SonicWall Serial Console Automation Tool for SonicOS.
 
-###***This project is a work in progress.***
+### ***This project is a work in progress.***
 
 It is currently functional but requires configuration directly in the script file.
 
@@ -22,7 +22,7 @@ The tool will be updated to support the following:
 
 
 ---
-##**So what can you do with it?**
+## **So what can you do with it?**
 
 - Log console output to separate text files without any special configuration.
 
@@ -46,7 +46,7 @@ The tool will be updated to support the following:
 
 
 ---
-##**Requirements:**
+## **Requirements:**
 
 1. Python 3.6 or later.
 
@@ -57,7 +57,7 @@ The tool will be updated to support the following:
 3. Optional: Use the Windows Terminal app instead of a CMD or PowerShell window. It is a nicer experience :).
 
 ---
-##**Features:**
+## **Features:**
 
 Automatically authenticates to the console session and detects if there's an existing logged-in session.
 Detects if the device stops responding and recovers.
@@ -69,7 +69,7 @@ Windows PowerShell app and Windows Command Prompt do not display the spinner. In
 
 
 ---
-##**Notes:**
+## **Notes:**
 
 Only tested on Windows 10. I imagine it can work on other operating systems, but I haven't tested them.
 I have not tested this on macOS or any Linux distros.
@@ -77,7 +77,7 @@ I have not tested this with any multi-blade firewalls.
 
 
 ---
-##**FAQ:**
+## **FAQ:**
 
 Does this work with SSH Management or SonicOS API?
 
@@ -86,7 +86,7 @@ Does this work with SSH Management or SonicOS API?
 
 
 ---
-##**How to run the script:**
+## **How to run the script:**
 
 > py snwl-serial.py
 
