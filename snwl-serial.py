@@ -321,6 +321,10 @@ def collect_diagnostic_data():
                         print_before=f"[yellow]Executing: '{c['cmd']}'[/yellow]",
                         print_after=f"[green]Finished: '{c['cmd']}'[/green]")
 
+    # This is the end of the function. This function does not directly call
+    # the process_console_response() function. Instead, by using process_response I
+    # don't need to directly call it here as it is already done at each command sent.
+
 
 # Open the serial port.
 # This will fail if another terminal app or script instance is running and connected to the port.
