@@ -71,9 +71,13 @@ Windows PowerShell app and Windows Command Prompt do not display the spinner. In
 ---
 ## **Notes:**
 
-Only tested on Windows 10. I imagine it can work on other operating systems, but I haven't tested them.
-I have not tested this on macOS or any Linux distros.
-I have not tested this with any multi-blade firewalls.
+- Only tested on Windows 10. I imagine it can work on other operating systems, but I haven't tested them.
+
+
+- I have not tested this on macOS or any Linux distros.
+
+
+- I have not tested this with any multi-blade firewalls.
 
 
 ---
