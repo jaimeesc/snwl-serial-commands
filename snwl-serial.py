@@ -306,7 +306,6 @@ def collect_diagnostic_data():
         {'cmd': 'diag show tracelog current', 'process_response': True, 'wait_time': 0.5},
         {'cmd': 'diag show tracelog last', 'process_response': True, 'wait_time': 0.5},
         {'cmd': 'show tech-support-report', 'process_response': True, 'wait_time': 0.5},
-        {'cmd': 'dd', 'process_response': True, 'wait_time': 0.5},
     ]
 
     # For each command in the list.
@@ -399,12 +398,14 @@ def verify_console_response(scheduled_job=False):
                 # Generally we expect to see a prompt when we hit Enter unless the box is down
                 # or is restarting.
                 if len(r) < 1:
+                    # If print_console_output is False, clear the spinner text and stop the spinner.
                     if not print_console_output:
                         spinner.text = ""
                         spinner.stop()
-                    print("[red bold]Device is not responding. It may be powered off or rebooting. Make sure the console cable is secure.[/]")
+                    # Print a line. Stopped/cleared spinner so it is properly displayed/not duplicated.
+                    #print("[red bold]Device is not responding. It may be powered off or rebooting. Make sure the console cable is secure.[/]")
                     if not print_console_output:
-                        spinner.text = "Please wait..."
+                        spinner.text = "Device is not responding. It may be powered off or rebooting. Make sure the console cable is secure. Please wait..."
                         spinner.start()
                     continue
                 # Else (the console response is at least 1 line)
