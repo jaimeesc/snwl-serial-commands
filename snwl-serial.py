@@ -15,14 +15,13 @@
 #
 # Written with love by The SMART Associates
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-version_string = "0.3"
+version_string = "0.4"
 
 
 # Import these modules
 import serial
 import schedule
-import signal
-import sys
+import os
 import argparse
 import configparser
 from time import sleep
@@ -33,11 +32,44 @@ from yaspin import yaspin, kbi_safe_yaspin
 from yaspin.spinners import Spinners
 
 
+# Argument handling
+argP = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
+                               description="""This program has 2 modes: 'Single Job Mode' and 'Scheduled Job Mode'.
+
+Single Job Mode executes an input job file once, logs the output, and quits.
+    A job file is a TXT file containing CLI commands (one command per line).
+
+Scheduled Job Mode reads a scheduled job INI file and runs the configured jobs on an interval.
+    All console output is logged while the program is running.
+    An example scheduled job configuration INI is included with this program.
+
+By default, displayed output is limited. Use -d to display all output.
+
+Configure the serial port and other settings in snwl_config.ini.""")
+argP.add_argument("filename",
+                  metavar="<SCHEDULED JOB CONFIGURATION INI OR JOB TXT FILE>",
+                  help="Provide an INI or TXT file as input. A TXT file containing CLI commands to run (one command per line) or a scheduled job configuration INI file.",
+                  type=str)
+argP.add_argument("--display_all_output", "-d",
+                  help="Display all console output. If this argument is not used (default), less output is displayed. ",
+                  action="store_true")
+args = argP.parse_args()
+
+
+# Set a variable for the path to the local files (serverconfig.ini, etc.)
+script_path = os.path.dirname(os.path.realpath(__file__))
+config_file = os.path.join(script_path, 'snwl_config.ini')
+
+# Initialize the configuration parser
+config = configparser.ConfigParser()
+scheduled_jobs_config = configparser.ConfigParser()
+config.read(config_file)
+
 # Settings
 # Firewall credentials.
 credentials = {
-    "user": "admin",
-    "password": "password"
+    "user": config['CREDENTIALS']['user'],
+    "password": config['CREDENTIALS']['password']
 }
 
 # Parameters for use within SonicOS.
@@ -51,20 +83,6 @@ prompts = {
     'sos_prompt_config': ")# ",
     'shell_prompt': "-> "
 }
-
-# Interval at which to run the scheduled commands (in seconds)
-job_run_every = 300
-
-# Print console output False prints start/end messages for each command executed.
-# True prints all console output. Either way, output is still saved to a log file.
-print_console_output = False
-
-# True prints a "Still running..." message when commands are taking time to complete.
-# False prints nothing while long-running commands are executing.
-# These messages are NOT written to the log.
-# Using False may lead you to think the script hung during long-running commands.
-# Using True will flood the user's terminal/cmd prompt window, but at least you can see there's progress.
-print_command_status = False
 
 # Serial connection parameters.
 # SonicWall: 115200 baud, 8 data bits, 1 stop bit, no parity, no flow control.
@@ -82,7 +100,7 @@ serial_params = {
 
 # Custom exit function
 def custom_exit():
-    if not print_console_output:
+    if not display_all_output:
         spinner.stop()
     print("\n[bold red]Terminated![/]\n")
     exit()
@@ -126,7 +144,7 @@ def send_to_console(ser: serial.Serial, command: str,
 
     # Try to wait for a short time for the command to complete.
     try:
-        if not print_console_output:
+        if not display_all_output:
             spinner.start()
         sleep(wait_time)
     except KeyboardInterrupt:
@@ -144,19 +162,17 @@ def send_to_console(ser: serial.Serial, command: str,
             # Process the console response without a message.
             process_console_response()
 
-    #print("----", ser.read(ser.inWaiting()).decode('utf-8'), end="")
-
 
 # Shortcut function to disable paging in the CLI
 def disable_cli_paging():
     # Stop the spinner before printing.
-    if not print_console_output:
+    if not display_all_output:
         spinner.stop()
 
     # Disable the CLI paging in SonicOS for this login session.
     if sonicos_params["disable_cli_paging"]:
         print(f"[green]Disabling CLI paging for this login session.[/green]")
-        if not print_console_output:
+        if not display_all_output:
             spinner.start()
 
         # Send the command.
@@ -186,7 +202,7 @@ def report_active_tunnels():
     write_output_to_file(r)
 
     # Stop the spinner and print a message.
-    if not print_console_output:
+    if not display_all_output:
         spinner.stop()
     print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [cyan]Displaying active IPSec VPN tunnels (show vpn tunnels ipsec)[/cyan]")
 
@@ -199,7 +215,7 @@ def report_active_tunnels():
     for i in r:
         # Find the policy name
         if i.decode().startswith("Policy:"):
-#            active_tunnels.get(i.decode().split('Policy: ')[-1], "")
+            #active_tunnels.get(i.decode().split('Policy: ')[-1], "")
             # Append the name to a list for later use.
             active_tunnel_names.append(i.decode().split('Policy: ')[-1].strip('\r\n'))
         # Find the IPSec Gateway
@@ -235,7 +251,7 @@ def report_active_tunnels():
 # Doing that also allows you to add pre- and post- prints with print_before and print_after.
 def enable_interface_management(interface=''):
     # If not printing output, we display a spinner instead. This helps manage the spinner display.
-    if not print_console_output:
+    if not display_all_output:
         spinner.stop()
 
     # Printing before sending any commands.
@@ -270,7 +286,7 @@ def enable_interface_management(interface=''):
 # the response, which confirms the completion of the command and may display output that's returned.
 def collect_diagnostic_data():
     # Start the spinner if console output is disabled.
-    if not print_console_output:
+    if not display_all_output:
         spinner.stop()
 
     # Verify the console prompt before running the jobs.
@@ -398,19 +414,19 @@ def verify_console_response(scheduled_job=False):
                 # Generally we expect to see a prompt when we hit Enter unless the box is down
                 # or is restarting.
                 if len(r) < 1:
-                    # If print_console_output is False, clear the spinner text and stop the spinner.
-                    if not print_console_output:
+                    # If display_all_output is False, clear the spinner text and stop the spinner.
+                    if not display_all_output:
                         spinner.text = ""
                         spinner.stop()
                     # Print a line. Stopped/cleared spinner so it is properly displayed/not duplicated.
                     #print("[red bold]Device is not responding. It may be powered off or rebooting. Make sure the console cable is secure.[/]")
-                    if not print_console_output:
+                    if not display_all_output:
                         spinner.text = "Device is not responding. It may be powered off or rebooting. Make sure the console cable is secure. Please wait..."
                         spinner.start()
                     continue
                 # Else (the console response is at least 1 line)
                 else:
-                    if not print_console_output:
+                    if not display_all_output:
                         spinner.text = ""
 
                     # Write the console response to a log file.
@@ -424,7 +440,7 @@ def verify_console_response(scheduled_job=False):
                         # If the prompt text is detected in the line.
                         if prompts['sos_prompt'].encode('utf-8') in x:
                             if not scheduled_job:
-                                if not print_console_output:
+                                if not display_all_output:
                                     spinner.stop()
                                 print("[green]Detected SonicOS CLI prompt [yellow](already logged in)[/yellow].[/green]")
                                 # Disable paging just in case we jump into an existing authenticated console session.
@@ -436,7 +452,7 @@ def verify_console_response(scheduled_job=False):
                                 responding = True
                                 break
                         elif "User:".encode('utf-8') in x:
-                            if not print_console_output:
+                            if not display_all_output:
                                 spinner.stop()
                             print("[green]Detected SonicOS CLI prompt [yellow](User:)[/yellow].[/green]")
                             responding = True
@@ -444,7 +460,7 @@ def verify_console_response(scheduled_job=False):
                             break
                         elif "Password:".encode('utf-8') in x:
                             if len(x) < 20:
-                                if not print_console_output:
+                                if not display_all_output:
                                     spinner.stop()
                                 print("[green]Detected SonicOS CLI prompt [yellow](Password:)[/yellow].[/green]")
                                 responding = True
@@ -452,7 +468,7 @@ def verify_console_response(scheduled_job=False):
                             break
                         if prompts['sos_prompt_config'].encode('utf-8') in x:
                             if not scheduled_job:
-                                if not print_console_output:
+                                if not display_all_output:
                                     spinner.stop()
                                 print(
                                     "[green]Detected SonicOS CLI configuration prompt. [yellow](already logged in)[/yellow].[/green]")
@@ -466,13 +482,13 @@ def verify_console_response(scheduled_job=False):
                                 break
                         elif prompts['shell_prompt'].encode('utf-8') in x:
                             if len(x) < 12:
-                                if not print_console_output:
+                                if not display_all_output:
                                     spinner.stop()
                                 print("[green]Detected debug shell prompt.[/green]", "--->", line2.decode())
                                 responding = True
                         # If login fails (occurs when we hit ENTER at a half-logged in console (at a passwd prompt)
                         elif "Access denied".encode('utf-8') in x:
-                            if not print_console_output:
+                            if not display_all_output:
                                 spinner.stop()
                             # Print a message showing access denied, set the responding flag to True, then
                             # authenticate the console session. Once the code flow returns back to this function,
@@ -483,7 +499,7 @@ def verify_console_response(scheduled_job=False):
                             # Break out of the loop.
                             break
                         elif "--MORE--".encode('utf-8') in x:
-                            if not print_console_output:
+                            if not display_all_output:
                                 spinner.stop()
                             # If the line includes --MORE-- indicating a previous command that paginated output.
                             print(f"[yellow]A paginated command is still running. Sending 'q' to cancel that command's output.[/yellow]")
@@ -491,9 +507,9 @@ def verify_console_response(scheduled_job=False):
                             # Send a Q and ENTER keystroke so we get something back.
                             send_to_console(sc, "q")
                         else:
-                            if not print_console_output:
+                            if not display_all_output:
                                 spinner.stop()
-                            if print_console_output:
+                            if display_all_output:
                                 print(x.decode().rstrip('\n'))
                             #print("[yellow]Detected a response, but not a prompt. Device may be rebooting.[/yellow]")
 #                            responding = True
@@ -506,7 +522,7 @@ def verify_console_response(scheduled_job=False):
 
     # Else, the connection is down. Print a message. (if sc.open is False)
     else:
-        if not print_console_output:
+        if not display_all_output:
             spinner.stop()
         print("[red]Console connection is down.[/red]")
 
@@ -514,7 +530,7 @@ def verify_console_response(scheduled_job=False):
 # Checks if authenticated. If not, authenticates.
 def auth_serial_connection():
     # Stop the spinner before printing.
-    if not print_console_output:
+    if not display_all_output:
         spinner.stop()
 
     # If the serial connection is open
@@ -535,7 +551,7 @@ def auth_serial_connection():
                 return
             elif "--MORE--" in line1.decode():
                 # Stop the spinner before printing.
-                if not print_console_output:
+                if not display_all_output:
                     spinner.stop()
                 # If the user is already logged in, return.
                 print(f"[yellow]A paginated command is still running. Sending 'q' to cancel that command's output.[/yellow]")
@@ -545,7 +561,7 @@ def auth_serial_connection():
                 disable_cli_paging()
             else:
                 # Stop the spinner before printing.
-                if not print_console_output:
+                if not display_all_output:
                     spinner.stop()
                 # Send an ENTER keystroke so we get something back.
                 # Console will get stuck/hang if we try to readlines without having new output to read.
@@ -554,7 +570,7 @@ def auth_serial_connection():
         # If a user login prompt is returned, authenticate.
         if "User:".encode('utf-8') in sc.readlines():
             # Stop the spinner before printing.
-            if not print_console_output:
+            if not display_all_output:
                 spinner.stop()
             print(f"[yellow]Authenticating as [bold]'{credentials['user']}'[bold][yellow]")
             send_to_console(sc, credentials['user'], prepend_enter_key=False, wait_time=2)
@@ -562,27 +578,24 @@ def auth_serial_connection():
         # After sending the username, check the response for the password prompt.
         if "Password:".encode('utf-8') in sc.readlines():
             # Stop the spinner before printing.
-            if not print_console_output:
+            if not display_all_output:
                 spinner.stop()
             print(f"[yellow]Sending password.[/yellow]")
             # This wait time may need to be changed. It needs to be long enough for SonicOS to return a response.
-            # Sometimes it can take a
             send_to_console(sc, credentials['password'], prepend_enter_key=False, wait_time=6)
 
         # This next section handles login failures.
         new_lines = sc.readlines()
         for i in new_lines:
             # Stop the spinner before printing.
-            if not print_console_output:
+            if not display_all_output:
                 spinner.stop()
 
             if "Access denied".encode('utf-8') in i:
                 print(f"[red]Login failed. Access denied. Check your credentials and try again.[/red]")
-                #exit()
                 custom_exit()
             if "% Maximum login attempts exceeded.".encode('utf-8') in i:
                 print(f"[red]Login failed. Maximum login attempts exceeded. Check your credentials and try again.[/red]")
-                #exit()
                 custom_exit()
             if prompts['sos_prompt'].encode('utf-8') in i:
                 print(f"[green]Authenticated![/green]")
@@ -604,8 +617,6 @@ def process_console_response(after_process_msg=''):
         try:
             sleep(0.4)
         except KeyboardInterrupt:
-            #print("Cancelled!")
-            #exit()
             custom_exit()
 
         # Read the console response. Set lines var to the console response list.
@@ -616,8 +627,6 @@ def process_console_response(after_process_msg=''):
             print(sc.readlines())
             sleep(2)
         except KeyboardInterrupt:
-            #print("Cancelled!")
-            #exit()
             custom_exit()
 
         # Write the list to the output file.
@@ -629,53 +638,53 @@ def process_console_response(after_process_msg=''):
             try:
                 # If the line is a SonicOS prompt, colorize the print out.
                 if prompts['sos_prompt'].encode('utf-8') in line:
-                    if print_console_output:
+                    if display_all_output:
                         lx = line.decode().rstrip('\n')
                         print(f'[cyan]{lx}[/cyan]')
                 # If the line is a SonicOS prompt, colorize the print out.
                 elif prompts['sos_prompt_config'].encode('utf-8') in line:
-                    if print_console_output:
+                    if display_all_output:
                         lx = line.decode().rstrip('\n')
                         print(f'[cyan]{lx}[/cyan]')
                 # If the line is the echo of the "no cli pager session" command...
                 elif "no cli pager session".encode('utf-8') in line:
-                    if print_console_output:
+                    if display_all_output:
                         lx = line.decode().rstrip('\n')
                         print(f'[cyan]{lx}[/cyan]')
                 # If the line is the echo of the "no cli pager session" command...
                 elif "diag show".encode('utf-8') in line:
-                    if not print_console_output:
+                    if not display_all_output:
                         spinner.stop()
-                    if print_console_output:
+                    if display_all_output:
                         lx = line.decode().rstrip('\n')
                         print(f"[cyan]{lx}[/cyan]")
                 # If the line is a "% " response such as Applying changes or errors, colorize print out.
                 elif line.startswith("% ".encode('utf-8')) and "of maximum connections".encode('utf-8') not in line:
-                    if not print_console_output:
+                    if not display_all_output:
                         spinner.stop()
                     lx = line.decode().rstrip('\n')
                     print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [yellow]{lx}[/yellow]")
                 # If the line is the commit line from status returned processing command, colorize print out.
                 elif "  commit".encode('utf-8') in line:
-                    if not print_console_output:
+                    if not display_all_output:
                         spinner.stop()
                     lx = line.decode().rstrip('\n')
                     print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [yellow]{lx}[/yellow]")
                 # If the line is % Changes made colorize the print out.
                 elif "% User logout.".encode('utf-8') in line:
-                    if not print_console_output:
+                    if not display_all_output:
                         spinner.stop()
                     lx = line.decode().rstrip('\n')
                     print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [yellow]{lx}[/yellow]")
                 else:
                     # Else don't colorize.
                     try:
-                        if print_console_output:
+                        if display_all_output:
                             print(line.decode().rstrip('\n'))
                     except KeyboardInterrupt:
                         print("Cancelled!")
             except UnicodeDecodeError as e:
-                if print_console_output:
+                if display_all_output:
                     print("WARNING: Unicode decode error:", e, "-->", line)
 
             # If the command was paginated, the response will include --MORE--.
@@ -688,7 +697,7 @@ def process_console_response(after_process_msg=''):
                 if line == "User:".encode('utf-8'):
                     auth_serial_connection()
             except UnicodeDecodeError:
-                if print_console_output:
+                if display_all_output:
                     print(line)
 
         # Check if the last line in the response is a SonicOS prompt or if the command is still running.
@@ -702,7 +711,7 @@ def process_console_response(after_process_msg=''):
                         if after_process_msg:
                             # Print the message if the length is at least 1.
                             if len(after_process_msg) > 0:
-                                if not print_console_output:
+                                if not display_all_output:
                                     spinner.stop()
                                 print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: {after_process_msg}")
                     # Else if the response is not a SonicOS prompt (indicating the command is still running)
@@ -715,10 +724,10 @@ def process_console_response(after_process_msg=''):
                                     print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [yellow]Still running...[/yellow]")
                                 else:
                                     try:
-                                        if not print_console_output:
+                                        if not display_all_output:
                                             spinner.start()
                                     except KeyboardInterrupt:
-                                        if not print_console_output:
+                                        if not display_all_output:
                                             spinner.stop()
                                         #print("Cancelled!")
                                         #exit()
@@ -726,7 +735,7 @@ def process_console_response(after_process_msg=''):
                                 continue
                         continue
                 except UnicodeDecodeError as e:
-                    if not print_console_output:
+                    if not display_all_output:
                         spinner.stop()
                     print(f"[bold red]WARNING: {e}. This can occur when there's a sudden loss of serial connectivity.[/]")
         except IndexError as e:
@@ -737,25 +746,61 @@ def process_console_response(after_process_msg=''):
         processed = True
 
         # Stop the spinner.
-        if not print_console_output:
+        if not display_all_output:
             spinner.stop()
 
 
-# Run these commands.
-def job():
+# Runs a single job with a passed in list of commands.
+def single_job(cl: list):
     # Start the spinner if console output is disabled.
-    if not print_console_output:
+    if not display_all_output:
+        spinner.start()
+
+    # Verify the console prompt before running the jobs.
+    # Setting the scheduled_job flag hides some redundant messages that are
+    # printed when verifying the console response.
+    verify_console_response(scheduled_job=True)
+#    verify_console_response()
+
+    # Run these jobs
+#    send_to_console(sc, "")
+    for c in cl:
+        send_to_console(sc, c, process_response=True)
+
+    # When starting the scheduled jobs, after verifying the console response.
+    print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [bold yellow]Executed single job. Done![/]")
+    print()
+
+
+# Builds a scheduled job that is executed by the schedule module. Pass in the command list, job name, and interval.
+# This function executes the command and processes the response from the console.
+def scheduled_job(cmd_list: list, job_name: str, interval: int):
+    # Start the spinner if console output is disabled.
+    if not display_all_output:
         spinner.start()
 
     # Verify the console prompt before running the jobs.
     verify_console_response(scheduled_job=True)
 
     # When starting the scheduled jobs, after verifying the console response.
-    print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [bold yellow]Scheduled jobs in job() were executed. Interval: {job_run_every}[/]")
+    print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [bold yellow]Scheduled job '[bold cyan]{job_name}[/bold cyan]' started. Interval: {interval} seconds.[/]")
 
-    # Run these jobs
-#    send_to_console(sc, "")
-    report_active_tunnels()
+    # For each command in the list.
+    for c in cmd_list:
+        # Send the command!
+        # In this example, I set an f-string for print_before and print_after.
+        # You can choose to include custom prints within the command dictionaries above and reference
+        # that key in the command below.
+        send_to_console(sc, c, process_response=True)
+                        #print_before=f"[yellow]Executing: '{c}'[/yellow]",
+                        #print_after=f"[green]Finished: '{c}'[/green]")
+
+    # When starting the scheduled jobs, after verifying the console response.
+    print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [bold yellow]Job '[bold cyan]{job_name}[/bold cyan]' [bold green]completed![/]")
+
+    # This is the end of the function. This function does not directly call
+    # the process_console_response() function. Instead, by using process_response I
+    # don't need to directly call it here as it is already done at each command sent.
 
 
 # Write output to a text file.
@@ -768,16 +813,12 @@ def write_output_to_file(output):
         with open(filename, 'ab') as output_file:
             output_file.writelines(output)
     except KeyboardInterrupt:
-#        print("Cancelled!")
-#        exit()
         custom_exit()
     except Exception as e:
         print(e)
     except FileExistsError as e:
         print(e)
     except FileNotFoundError as e:
-#        print(e)
-#        exit()
         custom_exit()
 
 
@@ -801,8 +842,23 @@ def print_banner():
 # Starts the scheduled routine on launch of the script.
 # Runs the routine once initially before starting the loop.
 if __name__ == '__main__':
+    # Print console output False prints start/end messages for each command executed.
+    # True prints all console output. Either way, output is still saved to a log file.
+    if args.display_all_output:
+        display_all_output = True
+    else:
+        display_all_output = False
+
+    # True prints a "Still running..." message when commands are taking time to complete.
+    # False prints nothing while long-running commands are executing.
+    # These messages are NOT written to the log.
+    # Using False may lead you to think the script hung during long-running commands.
+    # Using True will flood the user's terminal/cmd prompt window, but at least you can see there's progress.
+    # With the addition of the spinner, I think this should just stay False.
+    print_command_status = False
+
     # Spinner initialized if printing output is disabled
-    if not print_console_output:
+    if not display_all_output:
         spinner = yaspin()
         spinner.color = 'cyan'
         spinner.spinner = Spinners.earth
@@ -811,12 +867,22 @@ if __name__ == '__main__':
     print_banner()
 
     # Warn the user if output is not displayed on console.
-    if not print_console_output:
-        print(f"[cyan bold]NOTE: PRINTING CONSOLE OUTPUT HAS BEEN DISABLED. THE CONSOLE SESSION'S OUTPUT IS STILL WRITTEN TO FILE.[/]")
+    if not display_all_output:
+        print(f"[cyan bold]Display All Output: [bold yellow]DISABLED[/bold yellow]. The console output will be logged.[/]")
+    else:
+        print(f"[cyan bold]Display All Output: [bold yellow]ENABLED[/bold yellow]. The console output will be logged.[/]")
+
+    # Check if input file is a job file or ini file.
+    if str(args.filename).endswith(".txt"):
+        print(f"[bold yellow]Single Job Mode.[/] TXT File: [yellow]{os.path.join(args.filename)}[/]")
+    elif str(args.filename).endswith(".ini"):
+        print(f"[bold yellow]Scheduled Job Mode.[/] INI File: [yellow]{os.path.join(args.filename)}[/]")
+        scheduled_jobs_file = os.path.join(args.filename)
+        scheduled_jobs_config.read(scheduled_jobs_file)
 
     # Print a timestamp
     start_timestamp = generate_timestamp().split('.')[0]
-    print(f"[cyan bold]DATE/TIME: {start_timestamp} - Saving output to [bold yellow]'{start_timestamp.replace(' ', '_').replace(':', '-')}.log'[/bold yellow].[/]")
+    print(f"[cyan bold]DATE/TIME: {start_timestamp} - Saving console output to [bold yellow]'{start_timestamp.replace(' ', '_').replace(':', '-')}.log'[/bold yellow].[/]")
 
     # Blank line
     print()
@@ -832,35 +898,66 @@ if __name__ == '__main__':
 
     # Check if authenticated on the console.
     # Also verifies if the firewall is responding over console.
-#    auth_serial_connection()
-
-    # Run the show status command.
-#    send_to_console(sc, "show status")
-#    report_active_tunnels()
+    #auth_serial_connection()
 
     # Schedule the jobs to run. The jobs do not run initially.
     # You can run the functions manually if you want them to run initially.
-#    schedule.every(job_run_every).seconds.do(job)
 #    schedule.every(10).seconds.do(collect_diagnostic_data)
 
-    # Scheduling jobs.
-    print("[bold yellow]Jobs were scheduled successfully.[/]")
-    if not print_console_output:
+    # Process scheduled jobs ini file.
+    if str(args.filename).endswith(".ini"):
+        for section in scheduled_jobs_config.sections():
+            with open(os.path.join(scheduled_jobs_config[section]['job_file']), 'r') as f:
+                cl = f.readlines()
+                schedule.every(int(scheduled_jobs_config[section]['run_job_every'])).seconds.do(
+                    scheduled_job,
+                    cmd_list=cl,
+                    job_name=scheduled_jobs_config[section]['job_name'],
+                    interval=int(scheduled_jobs_config[section]['run_job_every'])
+                )
+        # Scheduling jobs.
+        print(f"[bold yellow]All jobs in {args.filename} were scheduled successfully.[/]")
+
+    # Start the spinner if display_all_output is False.
+    if not display_all_output:
         spinner.start()
 
+
     # Manual one-time jobs to run before starting the loop.
-    collect_diagnostic_data()  # Initially run the job
+    # Create your own functions to handle console output in a special way.
+    # Some example functions:
+#    collect_diagnostic_data()  # Initially run the job
 #    enable_interface_management(interface='x0')
 #    enable_interface_management(interface='x1')
 #    exit()
 
-    # Start an infinite loop. Runs scheduled functions on an interval. Displays console output if enabled.
-    while True:
+    # If the input file is a scheduled job file, start the loop.
+    if str(args.filename).endswith(".ini"):
         # Runs the pending jobs if they need to run.
-        if not print_console_output:
-            spinner.start()
-        schedule.run_pending()
+        if not display_all_output:
+            spinner.stop()
 
-        # Process any available console response, if any.
-        process_console_response()
+        # Run all scheduled jobs now, with a 5 second delay in between jobs.
+        print(f"[yellow]Executing all scheduled jobs now.[/]")
+        schedule.run_all(delay_seconds=5)
 
+        # Start a loop to process any console output and run scheduled jobs.
+        # Displays console output if enabled, otherwise displayed out is limited.
+        while True:
+            # Runs the pending jobs if they need to run.
+            if not display_all_output:
+                spinner.start()
+
+            schedule.run_pending()
+
+            # Process any available console response, if any.
+            process_console_response()
+
+    elif str(args.filename).endswith(".txt"):
+        # Stop the spinner
+        if not display_all_output:
+            spinner.stop()
+        print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [yellow]Executing single job now.[/]")
+        with open(args.filename) as f:
+            cl = f.readlines()
+            single_job(cl)

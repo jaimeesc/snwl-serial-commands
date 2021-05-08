@@ -1,0 +1,9 @@
+config
+interface X1
+management https
+management ssh
+management ping
+management snmp
+commit
+end
+exit

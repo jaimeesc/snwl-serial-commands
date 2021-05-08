@@ -1,0 +1,13 @@
+show status
+diag show alerts
+diag show cpu
+diag show multicore
+diag show memory
+diag show fpa
+diag show mem-pools
+diag show memzone summary
+diag show memzone verbose
+diag show tracelog
+diag show tracelog current
+diag show tracelog last
+show tech-support-report
