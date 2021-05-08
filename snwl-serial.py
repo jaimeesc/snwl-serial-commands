@@ -15,7 +15,7 @@
 #
 # Written with love by The SMART Associates
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-version_string = "0.5"
+version_string = "0.6"
 
 
 # Import these modules
@@ -53,6 +53,9 @@ argP.add_argument("filename",
 argP.add_argument("--display_all_output", "-d",
                   help="Display all console output. If this argument is not used (default), less output is displayed. ",
                   action="store_true")
+argP.add_argument("--user", "-u",
+                  help="Provide the management username.",
+                  type=str)
 args = argP.parse_args()
 
 
@@ -65,16 +68,47 @@ config = configparser.ConfigParser()
 scheduled_jobs_config = configparser.ConfigParser()
 config.read(config_file)
 
+
+# Print console output False prints start/end messages for each command executed.
+# True prints all console output. Either way, output is still saved to a log file.
+if args.display_all_output:
+    display_all_output = True
+else:
+    display_all_output = False
+
+
+# Custom exit function
+def custom_exit():
+    if not display_all_output:
+        try:
+            spinner.stop()
+        # In case CTRL+C is sent before hitting the main function.
+        except NameError:
+            spinner = None
+    print()
+    print("[bold red]Terminated![/]\n")
+    exit()
+
+
 # Settings
 # Firewall credentials.
-credentials = {
-    "user": config['CREDENTIALS']['user'],
-    "password": config['CREDENTIALS']['password']
-}
+if args.user:
+    try:
+        credentials = {
+            "user": args.user,
+            "password": getpass()
+        }
+    except KeyboardInterrupt:
+        custom_exit()
+else:
+    credentials = {
+        "user": config['CREDENTIALS']['user'],
+        "password": config['CREDENTIALS']['password']
+    }
 
 # Parameters for use within SonicOS.
 sonicos_params = {
-    "disable_cli_paging": True
+    "disable_cli_paging": config.getboolean('SONICOS', 'disable_cli_paging')
 }
 
 # Prompts dictionary
@@ -88,22 +122,15 @@ prompts = {
 # SonicWall: 115200 baud, 8 data bits, 1 stop bit, no parity, no flow control.
 # RX/TX buffer size: on Windows, send a recommendation to the driver to use this buffer size.
 serial_params = {
-    'com_port': 'COM5',
+    'com_port': config['DEFAULT']['com_port'],
     'baud': 115200,
     'data_bits': serial.EIGHTBITS,
     'stop_bits': serial.STOPBITS_ONE,
     'parity': serial.PARITY_NONE,
     'xonxoff': False,
-    'rx_buffer_size': 512800, # (512800: 512.8 Kilobytes)
-    'tx_buffer_size': 512800 # (512800: 512.8 Kilobytes)
+    'rx_buffer_size': int(config['DEFAULT']['rx_buffer_size']), # (512800: 512.8 Kilobytes)
+    'tx_buffer_size': int(config['DEFAULT']['tx_buffer_size']) # (512800: 512.8 Kilobytes)
 }
-
-# Custom exit function
-def custom_exit():
-    if not display_all_output:
-        spinner.stop()
-    print("\n[bold red]Terminated![/]\n")
-    exit()
 
 
 # Timestamp generator
@@ -165,12 +192,13 @@ def send_to_console(ser: serial.Serial, command: str,
 
 # Shortcut function to disable paging in the CLI
 def disable_cli_paging():
-    # Stop the spinner before printing.
-    if not display_all_output:
-        spinner.stop()
-
     # Disable the CLI paging in SonicOS for this login session.
     if sonicos_params["disable_cli_paging"]:
+
+        # Stop the spinner before printing.
+        if not display_all_output:
+            spinner.stop()
+
         print(f"[green]Disabling CLI paging for this login session.[/green]")
         if not display_all_output:
             spinner.start()
@@ -371,6 +399,10 @@ def open_serial_connection():
             except serial.SerialTimeoutException as e:
                 print(f"[red bold]Serial Timeout Error: {e}. [cyan]Retrying...[/cyan][/red bold] (CTRL+C to quit)")
                 sleep(2)
+            except KeyboardInterrupt:
+                if not display_all_output:
+                    spinner.stop()
+                custom_exit()
             except Exception as e:
                 print('open_serial_connection: error ->', e)
                 sleep(2)
@@ -382,7 +414,9 @@ def open_serial_connection():
                     return sc
     # Handle manually quitting.
     except KeyboardInterrupt:
-        print("Cancelled!")
+        if not display_all_output:
+            spinner.stop()
+        custom_exit()
 
 
 # Verify that the firewall responds to commands
@@ -859,13 +893,6 @@ def print_banner():
 # Starts the scheduled routine on launch of the script.
 # Runs the routine once initially before starting the loop.
 if __name__ == '__main__':
-    # Print console output False prints start/end messages for each command executed.
-    # True prints all console output. Either way, output is still saved to a log file.
-    if args.display_all_output:
-        display_all_output = True
-    else:
-        display_all_output = False
-
     # True prints a "Still running..." message when commands are taking time to complete.
     # False prints nothing while long-running commands are executing.
     # These messages are NOT written to the log.
@@ -908,7 +935,12 @@ if __name__ == '__main__':
     sc = open_serial_connection()
 
     # On Windows, send a recommendation to the driver to use this buffer size.
-    sc.set_buffer_size(rx_size=serial_params['rx_buffer_size'], tx_size=serial_params['tx_buffer_size'])
+    try:
+        sc.set_buffer_size(rx_size=serial_params['rx_buffer_size'], tx_size=serial_params['tx_buffer_size'])
+    except KeyboardInterrupt:
+        if not display_all_output:
+            spinner.stop()
+        custom_exit()
 
     # Verify that we get a response from the console before moving forward.
     verify_console_response()
@@ -956,7 +988,10 @@ if __name__ == '__main__':
 
         # Run all scheduled jobs now, with a 5 second delay in between jobs.
         print(f"[bold yellow]Executing all scheduled jobs now.[/]")
-        schedule.run_all(delay_seconds=5)
+        try:
+            schedule.run_all(delay_seconds=5)
+        except KeyboardInterrupt:
+            custom_exit()
 
         # Start a loop to process any console output and run scheduled jobs.
         # Displays console output if enabled, otherwise displayed out is limited.
