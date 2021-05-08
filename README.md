@@ -72,7 +72,7 @@ Detects if the device stops responding and recovers.
 Automatically re-authenticates when the session is logged out.
 Option to display console output on the screen, with color text.
 Commands and CLI prompts are displayed in color to easily differentiate them from other console output.
-Fancy colors and spinner in the terminal – Use the 'Windows Terminal' app for the best experience.
+Fancy colors and spinner in the terminal – Use the 'Windows Terminal' app for the best experience.
 Windows PowerShell app and Windows Command Prompt do not display the spinner. Instead, there are characters that can't be displayed properly.
 
 
@@ -108,8 +108,10 @@ An example scheduled job configuration INI is included with this program.
 
 By default, displayed output is limited. Use -d to display all output.
 
+The -u argument accepts your management username and prompts you for the password so it doesn't have to be stored in plain text in snwl_config.ini. You still have the option to save the credentials in snwl_config.ini, but using -u overrides that configuration.
+
 **Quick Start:**
-1. Configure the serial port, SonicOS credentials, and other settings in snwl_config.ini.
+1. Configure the serial port, SonicOS credentials (or use -u), and other settings in snwl_config.ini.
 
 
 2. Write your custom jobs. There are some example jobs in the jobs folder.
@@ -121,15 +123,26 @@ By default, displayed output is limited. Use -d to display all output.
 4. Open Windows Terminal You can use CMD or PowerShell too, but Windows Terminal's output looks better and supports the spinner.
 
 
-Single Run Mode:
+Pass in a TXT file to run in Single Run Mode:
 > python3 snwl-serial.py job.txt
 
+Optionally run with all console output displayed:
 > python3 snwl-serial.py job.txt -d
 
-Scheduled Job Mode:
+Optionally supply credentials at run time without saving to the config file:
+> python3 snwl-serial.py job.txt -u admin
+
+> python3 snwl-serial.py job.txt -d -u admin
+
+Pass in an ini file to run in Scheduled Job Mode:
 > python3 snwl-serial.py scheduled_jobs.ini
 
 > python3 snwl-serial.py scheduled_jobs.ini -d
 
+> python3 snwl-serial.py scheduled_jobs.ini -d -u admin
+
+Use -h for help.
+
+> python3 snwl-serial.py scheduled_jobs.ini -h
 
 5. Use CTRL+C to quit.

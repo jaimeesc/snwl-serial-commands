@@ -54,7 +54,7 @@ argP.add_argument("--display_all_output", "-d",
                   help="Display all console output. If this argument is not used (default), less output is displayed. ",
                   action="store_true")
 argP.add_argument("--user", "-u",
-                  help="Provide the management username.",
+                  help="Provide the management username. You will be prompted to enter the password.",
                   type=str)
 args = argP.parse_args()
 
@@ -74,17 +74,20 @@ config.read(config_file)
 if args.display_all_output:
     display_all_output = True
 else:
+    # Spinner initialized if printing output is disabled
     display_all_output = False
+    spinner = yaspin()
+    spinner.color = 'cyan'
+    spinner.spinner = Spinners.earth
+
+
 
 
 # Custom exit function
 def custom_exit():
     if not display_all_output:
-        try:
-            spinner.stop()
+        spinner.stop()
         # In case CTRL+C is sent before hitting the main function.
-        except NameError:
-            spinner = None
     print()
     print("[bold red]Terminated![/]\n")
     exit()
@@ -901,12 +904,6 @@ if __name__ == '__main__':
     # With the addition of the spinner, I think this should just stay False.
     print_command_status = False
 
-    # Spinner initialized if printing output is disabled
-    if not display_all_output:
-        spinner = yaspin()
-        spinner.color = 'cyan'
-        spinner.spinner = Spinners.earth
-
     # Display banner.
     print_banner()
 
@@ -1010,6 +1007,9 @@ if __name__ == '__main__':
         if not display_all_output:
             spinner.stop()
         print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [bold yellow]Starting single job now.[/]")
-        with open(args.filename) as f:
-            cl = f.readlines()
-            single_job(cl)
+        try:
+            with open(args.filename) as f:
+                cl = f.readlines()
+                single_job(cl)
+        except KeyboardInterrupt:
+            custom_exit()
