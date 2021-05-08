@@ -15,7 +15,7 @@
 #
 # Written with love by The SMART Associates
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-version_string = "0.4"
+version_string = "0.5"
 
 
 # Import these modules
@@ -663,19 +663,19 @@ def process_console_response(after_process_msg=''):
                     if not display_all_output:
                         spinner.stop()
                     lx = line.decode().rstrip('\n')
-                    print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [yellow]{lx}[/yellow]")
+                    print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]:   [bold yellow]{lx}[/bold yellow]")
                 # If the line is the commit line from status returned processing command, colorize print out.
                 elif "  commit".encode('utf-8') in line:
                     if not display_all_output:
                         spinner.stop()
                     lx = line.decode().rstrip('\n')
-                    print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [yellow]{lx}[/yellow]")
+                    print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [bold yellow]{lx}[/bold yellow]")
                 # If the line is % Changes made colorize the print out.
                 elif "% User logout.".encode('utf-8') in line:
                     if not display_all_output:
                         spinner.stop()
                     lx = line.decode().rstrip('\n')
-                    print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [yellow]{lx}[/yellow]")
+                    print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [bold yellow]{lx}[/bold yellow]")
                 else:
                     # Else don't colorize.
                     try:
@@ -702,6 +702,7 @@ def process_console_response(after_process_msg=''):
 
         # Check if the last line in the response is a SonicOS prompt or if the command is still running.
         try:
+            #print(len(lines), lines)
             # If the response list of lines is at least 1.
             if len(lines) > 0:
                 # Check for a SonicOS prompt.
@@ -738,6 +739,11 @@ def process_console_response(after_process_msg=''):
                     if not display_all_output:
                         spinner.stop()
                     print(f"[bold red]WARNING: {e}. This can occur when there's a sudden loss of serial connectivity.[/]")
+            # This commented else below is hit when the console response is empty.
+            # This could simply be an empty line response after sending a command.
+            # I've seen it with command sets that require multiple commands, like configuring interface settings.
+            #else:
+            #    print("Console response is empty. -->", lines)
         except IndexError as e:
             print(after_process_msg, "-->", e, "-->", len(lines), "-->", lines)
 #            print(after_process_msg)
@@ -765,10 +771,19 @@ def single_job(cl: list):
     # Run these jobs
 #    send_to_console(sc, "")
     for c in cl:
-        send_to_console(sc, c, process_response=True)
+        c = c.strip('\n')
+        send_to_console(sc, c, process_response=True,
+                        print_before=f"[yellow]Sending '{c}'[/yellow].",
+                        print_after=f"[green]Finished: '{c}'[/green]."
+                        )
 
-    # When starting the scheduled jobs, after verifying the console response.
-    print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [bold yellow]Executed single job. Done![/]")
+    if not display_all_output:
+        spinner.start()
+
+    # Make sure the commands are done and process the output.
+    process_console_response()
+
+    print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [bold yellow]Done![/]")
     print()
 
 
@@ -791,9 +806,11 @@ def scheduled_job(cmd_list: list, job_name: str, interval: int):
         # In this example, I set an f-string for print_before and print_after.
         # You can choose to include custom prints within the command dictionaries above and reference
         # that key in the command below.
-        send_to_console(sc, c, process_response=True)
-                        #print_before=f"[yellow]Executing: '{c}'[/yellow]",
-                        #print_after=f"[green]Finished: '{c}'[/green]")
+        c = c.strip('\n')
+        send_to_console(sc, c, process_response=True,
+                        print_before=f"[yellow]Executing: '{c}'[/yellow]",
+                        print_after=f"[green]Finished: '{c}'[/green]"
+                        )
 
     # When starting the scheduled jobs, after verifying the console response.
     print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [bold yellow]Job '[bold cyan]{job_name}[/bold cyan]' [bold green]completed![/]")
@@ -938,7 +955,7 @@ if __name__ == '__main__':
             spinner.stop()
 
         # Run all scheduled jobs now, with a 5 second delay in between jobs.
-        print(f"[yellow]Executing all scheduled jobs now.[/]")
+        print(f"[bold yellow]Executing all scheduled jobs now.[/]")
         schedule.run_all(delay_seconds=5)
 
         # Start a loop to process any console output and run scheduled jobs.
@@ -957,7 +974,7 @@ if __name__ == '__main__':
         # Stop the spinner
         if not display_all_output:
             spinner.stop()
-        print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [yellow]Executing single job now.[/]")
+        print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [bold yellow]Starting single job now.[/]")
         with open(args.filename) as f:
             cl = f.readlines()
             single_job(cl)
