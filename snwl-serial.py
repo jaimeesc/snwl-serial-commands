@@ -15,7 +15,7 @@
 #
 # Written with love by The SMART Associates
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-version_string = "0.6"
+version_string = "0.7"
 
 
 # Import these modules
@@ -81,8 +81,6 @@ else:
     spinner.spinner = Spinners.earth
 
 
-
-
 # Custom exit function
 def custom_exit():
     if not display_all_output:
@@ -118,7 +116,9 @@ sonicos_params = {
 prompts = {
     'sos_prompt': credentials['user'] + "@",
     'sos_prompt_config': ")# ",
-    'shell_prompt': "-> "
+    'shell_prompt': "-> ",
+    'ospf_prompt': "ARS OSPF>",
+    'ospfv3_prompt': "ARS OSPFv3>"
 }
 
 # Serial connection parameters.
@@ -860,7 +860,8 @@ def scheduled_job(cmd_list: list, job_name: str, interval: int):
 # Write output to a text file.
 def write_output_to_file(output):
     # Build the filename string.
-    filename = f"{start_timestamp.replace(' ', '_').replace(':', '-')}.log"
+    file_time = str(generate_timestamp()).rsplit(':')[0].replace(' ', '_') + ".log"
+    filename = f"{start_timestamp.replace(' ', '_').replace(':', '-')}\{file_time}"
 
     # Try the write operation.
     try:
@@ -923,7 +924,14 @@ if __name__ == '__main__':
 
     # Print a timestamp
     start_timestamp = generate_timestamp().split('.')[0]
-    print(f"[cyan bold]DATE/TIME: {start_timestamp} - Saving console output to [bold yellow]'{start_timestamp.replace(' ', '_').replace(':', '-')}.log'[/bold yellow].[/]")
+
+    # Create the directory based on the script's start time.
+    try:
+        os.mkdir(start_timestamp.replace(' ', '_').replace(':', '-'))
+    except Exception as e:
+        print(f"[bold red]Error: {e}[/]")
+
+    print(f"[cyan bold]Saving console output to the [bold yellow]'{start_timestamp.replace(' ', '_').replace(':', '-')}'[/bold yellow] folder. Logs are split by hour.[/]")
 
     # Blank line
     print()

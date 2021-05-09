@@ -8,7 +8,11 @@
 
 TO-DO list:
 
-- [ ] Logging output split into multiple files. Probably something like **<launch_timestamp>\<scheduled_job_execution_timestamp>.log**
+- [X] Logging output split into multiple files.
+  
+Logs files are split by hour, place into a folder created at launch.
+
+**<launch_timestamp>\<date_hour>.log**
 
 
 - [X] CLI arguments/help. (added in 0.4)
