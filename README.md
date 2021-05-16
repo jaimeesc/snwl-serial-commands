@@ -3,36 +3,14 @@
 
 ![Screenshot](https://github.com/jaimeesc/snwl-serial-commands/blob/c5cf760729200223eba4ff36d1f7c89c8ca55851/screenshot.png)
 
-### ***This project is a work in progress.***
-
-
-TO-DO list:
-
-- [X] Logging output split into multiple files.
-  
-Logs files are split by hour, place into a folder created at launch.
-
-**<launch_timestamp>\<date_hour>.log**
-
-
-- [X] CLI arguments/help. (added in 0.4)
-
-Use the -h argument for more information.
-
-
-- [X] Friendly configuration file. (added in 0.4)
-
-Configuration is done *snwl_config.ini*.
-
-
-- [X] Input files with the list of CLI commands to run. (added in 0.4)
-
 Check out the updated **how to use the program** section.
 
 ---
 ## **So what can you do with it?**
 
-- Log console output to separate text files without any special configuration.
+- Log console output to separate text files without any special configuration. Logs files are split by hour, place into a folder created at launch.
+
+**<launch_timestamp>\<date_hour>.log**
 
 
 - Automatically gather diagnostic data (once or on a configurable interval) from a firewall connected via the serial console.
@@ -83,10 +61,7 @@ Windows PowerShell app and Windows Command Prompt do not display the spinner. In
 
 ## **Notes:**
 
-- Only tested on Windows 10. I imagine it can work on other operating systems, but I haven't tested them.
-
-
-- I have not tested this on macOS or any Linux distros.
+- Tested mainly on Windows 10, but also works on macOS.
 
 
 - I have not tested this with any multi-blade firewalls.

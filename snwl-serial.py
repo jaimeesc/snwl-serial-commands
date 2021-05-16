@@ -15,7 +15,7 @@
 #
 # Written with love by The SMART Associates
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
-version_string = "0.7"
+version_string = "0.8"
 
 
 # Import these modules
@@ -861,7 +861,7 @@ def scheduled_job(cmd_list: list, job_name: str, interval: int):
 def write_output_to_file(output):
     # Build the filename string.
     file_time = str(generate_timestamp()).rsplit(':')[0].replace(' ', '_') + ".log"
-    filename = f"{start_timestamp.replace(' ', '_').replace(':', '-')}\{file_time}"
+    filename = os.path.join(start_timestamp.replace(' ', '_').replace(':', '-'), file_time)
 
     # Try the write operation.
     try:
@@ -946,6 +946,11 @@ if __name__ == '__main__':
         if not display_all_output:
             spinner.stop()
         custom_exit()
+    except AttributeError as e:
+#        if not display_all_output:
+#            spinner.stop()
+        print("Warning:", e)
+#        custom_exit()
 
     # Verify that we get a response from the console before moving forward.
     verify_console_response()
@@ -961,14 +966,13 @@ if __name__ == '__main__':
     # Process scheduled jobs ini file.
     if str(args.filename).endswith(".ini"):
         for section in scheduled_jobs_config.sections():
-            with open(os.path.join(scheduled_jobs_config[section]['job_file']), 'r') as f:
+            with open(os.path.abspath(scheduled_jobs_config[section]['job_file']), 'r') as f:
                 cl = f.readlines()
                 schedule.every(int(scheduled_jobs_config[section]['run_job_every'])).seconds.do(
                     scheduled_job,
                     cmd_list=cl,
                     job_name=scheduled_jobs_config[section]['job_name'],
-                    interval=int(scheduled_jobs_config[section]['run_job_every'])
-                )
+                    interval=int(scheduled_jobs_config[section]['run_job_every']))
         # Scheduling jobs.
         print(f"[bold yellow]All jobs in {args.filename} were scheduled successfully.[/]")
 
@@ -1016,7 +1020,7 @@ if __name__ == '__main__':
             spinner.stop()
         print(f"[blue]{generate_timestamp().split('.')[0]}[/blue]: [bold yellow]Starting single job now.[/]")
         try:
-            with open(args.filename) as f:
+            with open(os.path.abspath(args.filename)) as f:
                 cl = f.readlines()
                 single_job(cl)
         except KeyboardInterrupt:
